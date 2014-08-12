@@ -1,0 +1,69 @@
+<%
+var db = new Database("AS_MONITORING_DATASOURCE");
+
+// execute a given SQL
+function executeQuery(sql){
+	return db.query(sql);
+}
+
+// get list of nodes reporting stats to the monitoring system
+function getAllNodes(){
+	var nodes = executeQuery("SELECT DISTINCT serverName AS node FROM REQUESTS_SUMMARY_PER_MINUTE;");
+	return nodes;
+}
+
+var action = request.getParameter("action");
+
+// build the where clause of the sql based on start_time, end_time and node values
+function buildWhere(){
+	var startTime = request.getParameter("start_time");
+	var endTime = request.getParameter("end_time");
+	var node = request.getParameter("node");
+
+	if(startTime == null && endTime == null && node == null){
+		return "";
+	}
+
+	var where = ""
+	if(startTime != null){
+		where = appendCondition(where, "time >= \"" + startTime + "\"");
+	}
+	if(endTime != null){
+		where = appendCondition(where, "time <= \"" + endTime + "\"");
+	}
+	if(node != null){
+		where = appendCondition(where, "serverName = \""+ node + "\"");
+	}
+
+	return where;
+}
+
+function appendCondition(where, condition){
+	if(where == ""){
+		where = " WHERE ";
+	}else{
+		where = where + " AND ";
+	}
+
+	return where + condition;
+}
+
+//send the requested data based on the action and the conditions provided
+if(action == "node_list"){
+	print(getAllNodes());
+}else if(action == "webapp_list"){
+	var where = buildWhere();
+
+	var sql = "SELECT sum(averageRequestCount) as total_requests\
+		, max(averageRequestCount) as max_request, min(averageRequestCount) as min_request\
+		, avg(averageRequestCount) as avg_request, max(averageResponseTime) as max_response\
+		, min(averageResponseTime) as min_response, avg(averageResponseTime) as avg_response\
+		, sum(sessionCount) as total_session, avg(sessionCount) as avg_session\
+		, sum(httpSuccessCount) as total_success, sum(httpErrorCount) as total_error \
+		 FROM REQUESTS_SUMMARY_PER_MINUTE " + where + ";";
+	
+	var results = executeQuery(sql);
+	print(results);
+}
+
+%>
